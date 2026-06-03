@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paddle Duel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    h1 {
+      font-size: 1.6rem;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: #00ffcc;
+      text-shadow: 0 0 12px #00ffcc88;
+      margin-bottom: 10px;
+    }
+    #scoreBoard {
+      display: flex;
+      gap: 60px;
+      font-size: 2.4rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #ffffff;
+      text-shadow: 0 0 8px #ffffff55;
+    }
+    canvas {
+      border: 2px solid #00ffcc44;
+      border-radius: 4px;
+      box-shadow: 0 0 30px #00ffcc22;
+    }
+    #controls {
+      margin-top: 12px;
+      font-size: 0.75rem;
+      color: #666;
+      letter-spacing: 1px;
+      text-align: center;
+      line-height: 1.8;
+    }
+    #message {
+      position: absolute;
+      font-size: 1.2rem;
+      letter-spacing: 4px;
+      color: #ffdd00;
+      text-shadow: 0 0 10px #ffdd0088;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Paddle Duel</h1>
+  <div id="scoreBoard">
+    <span id="scoreL">0</span>
+    <span style="color:#444">&#8212;</span>
+    <span id="scoreR">0</span>
+  </div>
+  <div id="message"></div>
+  <canvas id="c"></canvas>
+  <div id="controls">
+    LEFT PLAYER: W / S &amp;nbsp;|&amp;nbsp; RIGHT PLAYER: &amp;uarr; / &amp;darr;<br>
+    Press <strong>SPACE</strong> to start / pause &amp;nbsp;|&amp;nbsp; First to 7 wins
+  </div>
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const msg = document.getElementById('message');
+  const W = canvas.width  = 800;
+  const H = canvas.height = 480;
+  const PAD_W = 12, PAD_H = 80, PAD_SPEED = 5.5;
+  const BALL_R = 8;
+  const WIN_SCORE = 7;
+  let leftScore = 0, rightScore = 0;
+  let paused = true, gameOver = false;
+  const keys = {};
+  const ball = { x: W/2, y: H/2, vx: 0, vy: 0, r: BALL_R };
+  const left  = { x: 18,          y: H/2 - PAD_H/2, w: PAD_W, h: PAD_H };
+  const right = { x: W-18-PAD_W,  y: H/2 - PAD_H/2, w: PAD_W, h: PAD_H };
+  function resetBall(dir = 1) {
+    ball.x = W / 2; ball.y = H / 2;
+    const angle = (Math.random() * 0.6 - 0.3);
+    ball.vx = dir * 4.5 * Math.cos(angle);
+    ball.vy = 4.5 * Math.sin(angle);
+  }
+  function showMessage(text, duration = 1500) {
+    msg.textContent = text; msg.style.opacity = '1';
+    clearTimeout(msg._t);
+    if (duration > 0) msg._t = setTimeout(() => { msg.style.opacity = '0'; }, duration);
+  }
+  function startGame() {
+    leftScore = 0; rightScore = 0;
+    document.getElementById('scoreL').textContent = '0';
+    document.getElementById('scoreR').textContent = '0';
+    left.y = H/2 - PAD_H/2; right.y = H/2 - PAD_H/2;
+    gameOver = false; paused = false;
+    resetBall(Math.random() < 0.5 ? 1 : -1);
+    msg.style.opacity = '0';
+  }
+  document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (gameOver) { startGame(); return; }
+      if (paused) { paused = false; if (ball.vx === 0 && ball.vy === 0) resetBall(1); msg.style.opacity = '0'; }
+      else { paused = true; showMessage('PAUSED', -1); }
+    }
+  });
+  document.addEventListener('keyup', e => { keys[e.code] = false; });
+  function movePaddles() {
+    if (keys['KeyW']      && left.y  > 2)           left.y  -= PAD_SPEED;
+    if (keys['KeyS']      && left.y  < H-PAD_H-2)   left.y  += PAD_SPEED;
+    if (keys['ArrowUp']   && right.y > 2)            right.y -= PAD_SPEED;
+    if (keys['ArrowDown'] && right.y < H-PAD_H-2)   right.y += PAD_SPEED;
+  }
+  function rectHit(b, p) {
+    return b.x+b.r > p.x && b.x-b.r < p.x+p.w && b.y+b.r > p.y && b.y-b.r < p.y+p.h;
+  }
+  function moveBall() {
+    ball.x += ball.vx; ball.y += ball.vy;
+    if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy *= -1; }
+    if (ball.y + ball.r > H) { ball.y = H - ball.r; ball.vy *= -1; }
+    if (rectHit(ball, left)) {
+      ball.x = left.x + left.w + ball.r;
+      const rel = ((ball.y - left.y) / left.h) - 0.5;
+      const spd = Math.hypot(ball.vx, ball.vy) * 1.05;
+      ball.vx = Math.abs(spd * Math.cos(rel * 1.2));
+      ball.vy = spd * Math.sin(rel * 1.2);
+    }
+    if (rectHit(ball, right)) {
+      ball.x = right.x - ball.r;
+      const rel = ((ball.y - right.y) / right.h) - 0.5;
+      const spd = Math.hypot(ball.vx, ball.vy) * 1.05;
+      ball.vx = -Math.abs(spd * Math.cos(rel * 1.2));
+      ball.vy = spd * Math.sin(rel * 1.2);
+    }
+    if (ball.x - ball.r < 0) {
+      rightScore++;
+      document.getElementById('scoreR').textContent = rightScore;
+      if (rightScore >= WIN_SCORE) { endGame('RIGHT PLAYER WINS!'); return; }
+      paused = true; setTimeout(() => { resetBall(1); paused = false; }, 900);
+    }
+    if (ball.x + ball.r > W) {
+      leftScore++;
+      document.getElementById('scoreL').textContent = leftScore;
+      if (leftScore >= WIN_SCORE) { endGame('LEFT PLAYER WINS!'); return; }
+      paused = true; setTimeout(() => { resetBall(-1); paused = false; }, 900);
+    }
+  }
+  function endGame(text) { gameOver = true; paused = true; showMessage(text + '  --  SPACE to replay', -1); }
+  function drawGlow(color, fn) { ctx.shadowColor = color; ctx.shadowBlur = 18; fn(); ctx.shadowBlur = 0; }
+  function drawPaddle(p, color) {
+    drawGlow(color, () => {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 4); ctx.fill();
+    });
+  }
+  function drawBall() {
+    drawGlow('#ffdd00', () => {
+      ctx.fillStyle = '#ffee55';
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+  function drawCenterLine() {
+    ctx.setLineDash([8, 10]); ctx.strokeStyle = '#ffffff18'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0a0a0f'; ctx.fillRect(0, 0, W, H);
+    drawCenterLine(); drawPaddle(left, '#00ffcc'); drawPaddle(right, '#ff6ec7'); drawBall();
+  }
+  function loop() {
+    if (!paused && !gameOver) { movePaddles(); moveBall(); }
+    draw(); requestAnimationFrame(loop);
+  }
+  showMessage('PRESS SPACE TO START', -1);
+  loop();
+</script>
+</body>
+</html>
